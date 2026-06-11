@@ -54,7 +54,11 @@ if uploaded_file is not None:
 
         st.write("**Detailed Feedback & Properties:**")
         for reason in report.get('reasons', []):
-            st.warning(f"⚠️ {reason}") if "REJECTED" in report['status'] else st.success(f"✅ {reason}")
+            # FIXED: Standard if/else block to prevent DeltaGenerator printout
+            if "REJECTED" in report['status']:
+                st.warning(f"⚠️ {reason}")
+            else:
+                st.success(f"✅ {reason}")
 
     # Clean up the temporary file after displaying
     if os.path.exists(temp_path):
