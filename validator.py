@@ -14,27 +14,15 @@ class ECommerceValidator:
         self.BANNED_BACKGROUND_OBJECTS = ['person', 'dog', 'cat', 'cell phone', 'car'] 
 
     def extract_dominant_colors(self, image_path, k=5):
-        """Uses K-Means clustering to find the dominant hex colors in the image."""
         img = cv2.imread(image_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # Convert to standard Web RGB
-        
-        # --- THE OPTIMIZATION FIX: Downsample for Speed ---
-        # Shrinking to 150x150 processes in milliseconds instead of minutes
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.resize(img, (150, 150), interpolation=cv2.INTER_AREA)
-        # --------------------------------------------------
-
-        # Reshape image to a list of pixels
         pixels = img.reshape((-1, 3))
         pixels = np.float32(pixels)
-
-        # Define criteria and apply K-Means
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
         _, labels, centers = cv2.kmeans(pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
-        
-        # Convert centers back to 8-bit values and then to Hex codes
         centers = np.uint8(centers)
-        hex_colors = ['#{:02x}{:02x}{:02x}'.format(c[0], c[1], c[2]) for c in centers]
-        return hex_colors
+        return ['#{:02x}{:02x}{:02x}'.format(c[0], c[1], c[2]) for c in centers]
 
     def analyze_image(self, image_path):
         if not os.path.exists(image_path):
@@ -45,8 +33,8 @@ class ECommerceValidator:
         file_size_mb = round(os.path.getsize(image_path) / (1024 * 1024), 2)
         
         rejection_reasons = []
+        suggestions = [] # NEW: We will fill this with helpful tips!
         
-        # --- Checklist Booleans ---
         passed_resolution = True
         passed_focus = True
         passed_lighting = True
@@ -55,18 +43,21 @@ class ECommerceValidator:
         # 1. Image Property Checks
         if width < self.MIN_RESOLUTION[0] or height < self.MIN_RESOLUTION[1]:
             passed_resolution = False
-            rejection_reasons.append(f"Resolution too low ({width}x{height}). Minimum is {self.MIN_RESOLUTION[0]}x{self.MIN_RESOLUTION[1]}.")
+            rejection_reasons.append(f"Resolution too low ({width}x{height}).")
+            suggestions.append("📷 **Resolution Fix:** Move your camera closer to the product, or check your phone/camera settings to ensure you are shooting in High Resolution (at least 500x500 pixels).")
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
         if blur_score < self.BLUR_THRESHOLD:
             passed_focus = False
             rejection_reasons.append(f"Image is too blurry (Score: {round(blur_score, 1)}).")
+            suggestions.append("🔍 **Focus Fix:** Rest your arms on a table or use a tripod to keep the camera steady. Tap the screen on your phone to lock focus on the product before shooting.")
 
         brightness = np.mean(gray)
         if not (50 < brightness <= 255):
             passed_lighting = False
             rejection_reasons.append("Lighting is completely incorrect (Too dark).")
+            suggestions.append("☀️ **Lighting Fix:** Move your setup near a window for natural daylight, or place a desk lamp directly in front of the product. Avoid standing between the light and the product to prevent shadows.")
 
         # 2. AI Object Detection Checks
         results = self.model(image_path, verbose=False)
@@ -84,15 +75,15 @@ class ECommerceValidator:
                 if class_name in self.BANNED_BACKGROUND_OBJECTS:
                     passed_background = False
                     rejection_reasons.append(f"Banned object detected: {class_name.upper()}")
+                    suggestions.append(f"🧹 **Background Fix:** We saw a '{class_name}' in the background. Clear the desk/area completely. A plain white bedsheet or blank wall makes the best e-commerce background.")
 
-        # 3. Extract Dominant Colors (Now highly optimized!)
         dominant_colors = self.extract_dominant_colors(image_path)
 
-        # 4. Compile Data
         report = {
             "status": "REJECTED ❌" if rejection_reasons else "APPROVED ✅",
             "detected": list(set(detected_items)),
             "reasons": rejection_reasons if rejection_reasons else ["Meets all quality standards."],
+            "suggestions": list(set(suggestions)), # Pass suggestions to frontend
             "output_file": output_name,
             "metrics": {
                 "Resolution": f"{width}x{height} px",
@@ -110,21 +101,12 @@ class ECommerceValidator:
         }
         return report
 
-# === THE COMMAND LINE INTERFACE ===
 def main():
     parser = argparse.ArgumentParser(description="E-Commerce AI Image Quality Gatekeeper")
     parser.add_argument("image", help="The path to the image file")
     args = parser.parse_args()
-
     validator = ECommerceValidator()
-    print(f"\n--- SCANNING: {args.image} ---")
     report = validator.analyze_image(args.image)
-    
     print(f"\nFINAL VERDICT: {report['status']}")
-    print(f"Colors Extracted: {', '.join(report['colors'])}")
-    print("\nFeedback:")
-    for reason in report.get('reasons', []):
-        print(f" - {reason}")
-        
 if __name__ == "__main__":
     main()
