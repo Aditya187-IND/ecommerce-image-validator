@@ -12,7 +12,6 @@ class ECommerceValidator:
         # --- STRICT E-COMMERCE RULES ---
         self.MIN_RESOLUTION = (500, 500)
         self.BLUR_THRESHOLD = 100.0      
-        # If any of these are detected, the image is instantly rejected
         self.BANNED_BACKGROUND_OBJECTS = ['person', 'dog', 'cat', 'cell phone', 'car'] 
 
     def analyze_image(self, image_path):
@@ -39,16 +38,14 @@ class ECommerceValidator:
             rejection_reasons.append("Lighting is completely incorrect (Too dark).")
 
         # 2. AI Object Detection Checks
-        results = self.model(image_path, verbose=False) # verbose=False hides YOLO's default spam
+        results = self.model(image_path, verbose=False)
         detected_items = []
         
         for result in results:
-            # Save the visual proof
             annotated_image = result.plot()
             output_name = f"scanned_{os.path.basename(image_path)}"
             cv2.imwrite(output_name, annotated_image)
             
-            # Check for banned objects
             for box in result.boxes:
                 class_id = int(box.cls[0])
                 class_name = self.model.names[class_id]
@@ -57,25 +54,33 @@ class ECommerceValidator:
                 if class_name in self.BANNED_BACKGROUND_OBJECTS:
                     rejection_reasons.append(f"Banned object detected in background: {class_name.upper()}")
 
+        # Capture raw metrics regardless of pass/fail
+        image_metrics = {
+            "Resolution": f"{width}x{height} px",
+            "Sharpness Score": round(blur_score, 1),
+            "Brightness Score": round(brightness, 1)
+        }
+
         # 3. Final Decision Logic
         if len(rejection_reasons) > 0:
             return {
                 "status": "REJECTED ❌",
                 "detected": list(set(detected_items)),
                 "reasons": rejection_reasons,
-                "output_file": output_name
+                "output_file": output_name,
+                "metrics": image_metrics 
             }
         else:
             return {
                 "status": "APPROVED ✅",
                 "detected": list(set(detected_items)),
                 "reasons": ["Meets all quality standards."],
-                "output_file": output_name
+                "output_file": output_name,
+                "metrics": image_metrics
             }
 
 # === THE COMMAND LINE INTERFACE ===
 def main():
-    # This block allows you to run the tool professionally from the terminal
     parser = argparse.ArgumentParser(description="E-Commerce AI Image Quality Gatekeeper")
     parser.add_argument("image", help="The path to the image file you want to test")
     args = parser.parse_args()
@@ -85,7 +90,6 @@ def main():
     print(f"\n--- SCANNING: {args.image} ---")
     report = validator.analyze_image(args.image)
     
-    # Print the sleek terminal report
     print(f"\nFINAL VERDICT: {report['status']}")
     print(f"Objects Detected: {', '.join(report.get('detected', [])) if report.get('detected') else 'None'}")
     
