@@ -25,7 +25,7 @@ if uploaded_file is not None:
         report = engine.analyze_image(temp_path)
 
     # --- TOP ROW: Image and Core Verdict ---
-    col1, col2 = st.columns([1.5, 1]) # Makes the image column slightly wider
+    col1, col2 = st.columns([1.5, 1])
 
     with col1:
         st.subheader("Visual Analysis")
@@ -55,23 +55,28 @@ if uploaded_file is not None:
 
     st.divider() 
 
+    # --- ACTIONABLE NEXT STEPS (NEW FEATURE) ---
+    if "REJECTED" in report['status'] and report.get('suggestions'):
+        st.subheader("💡 Actionable Next Steps")
+        st.write("Here is how you can fix the issues and get your image approved for the store:")
+        for suggestion in report['suggestions']:
+            st.info(suggestion)
+        st.divider()
+
     # --- BOTTOM ROW: Data Dashboard ---
     st.subheader("📊 Technical Telemetry")
     
-    # Render Metrics
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Resolution", report['metrics']['Resolution'])
     m2.metric("Sharpness (Focus)", report['metrics']['Sharpness'])
     m3.metric("Lighting (Brightness)", report['metrics']['Brightness'])
     m4.metric("File Weight", report['metrics']['File Size'])
 
-    st.write("") # spacing
+    st.write("")
     
-    # Render Dominant Color Palette using Custom HTML
     st.write("**Extracted Product Color Palette:**")
     color_html = ""
     for hex_code in report['colors']:
-        # This draws the beautiful colored squares
         color_html += f"""
         <div style="
             background-color: {hex_code}; 
@@ -88,9 +93,8 @@ if uploaded_file is not None:
     st.markdown(color_html, unsafe_allow_html=True)
     st.caption(f"Hex Codes: {', '.join(report['colors'])}")
 
-    st.write("") # spacing
+    st.write("")
 
-    # Provide the Detailed Reason / Assessment
     st.write("**Verbose System Assessment:**")
     for reason in report.get('reasons', []):
         if "REJECTED" in report['status']:
