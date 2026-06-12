@@ -18,6 +18,11 @@ class ECommerceValidator:
         img = cv2.imread(image_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # Convert to standard Web RGB
         
+        # --- THE OPTIMIZATION FIX: Downsample for Speed ---
+        # Shrinking to 150x150 processes in milliseconds instead of minutes
+        img = cv2.resize(img, (150, 150), interpolation=cv2.INTER_AREA)
+        # --------------------------------------------------
+
         # Reshape image to a list of pixels
         pixels = img.reshape((-1, 3))
         pixels = np.float32(pixels)
@@ -80,7 +85,7 @@ class ECommerceValidator:
                     passed_background = False
                     rejection_reasons.append(f"Banned object detected: {class_name.upper()}")
 
-        # 3. Extract Dominant Colors
+        # 3. Extract Dominant Colors (Now highly optimized!)
         dominant_colors = self.extract_dominant_colors(image_path)
 
         # 4. Compile Data
