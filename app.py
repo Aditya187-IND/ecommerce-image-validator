@@ -1,5 +1,7 @@
 import streamlit as st
 import os
+import pandas as pd
+import altair as alt
 from validator import ECommerceValidator
 
 st.set_page_config(page_title="AI Quality Gatekeeper", layout="wide")
@@ -38,7 +40,6 @@ if uploaded_file is not None:
         else:
             st.success(f"## {report['status']}")
 
-        # --- THE VISUAL CHECKLIST ---
         st.write("**System Checklist:**")
         for criteria, passed in report['checklist'].items():
             if passed:
@@ -46,7 +47,7 @@ if uploaded_file is not None:
             else:
                 st.markdown(f"❌ **{criteria}**: Failed")
 
-        st.write("") # spacing
+        st.write("")
         st.write("**Detected Objects:**")
         if report.get('detected'):
             st.info(", ".join(report['detected']).title())
@@ -55,43 +56,42 @@ if uploaded_file is not None:
 
     st.divider() 
 
-    # --- ACTIONABLE NEXT STEPS (NEW FEATURE) ---
+    # --- ACTIONABLE NEXT STEPS ---
     if "REJECTED" in report['status'] and report.get('suggestions'):
         st.subheader("💡 Actionable Next Steps")
-        st.write("Here is how you can fix the issues and get your image approved for the store:")
+        st.write("Here is how you can fix the issues and get your image approved:")
         for suggestion in report['suggestions']:
             st.info(suggestion)
         st.divider()
 
-    # --- BOTTOM ROW: Data Dashboard ---
-    st.subheader("📊 Technical Telemetry")
+    # --- BOTTOM ROW: Data Dashboard & Graph ---
+    st.subheader("📊 Technical Telemetry & Color Distribution")
     
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Resolution", report['metrics']['Resolution'])
-    m2.metric("Sharpness (Focus)", report['metrics']['Sharpness'])
-    m3.metric("Lighting (Brightness)", report['metrics']['Brightness'])
-    m4.metric("File Weight", report['metrics']['File Size'])
+    m2.metric("Sharpness", report['metrics']['Sharpness'])
+    m3.metric("Brightness", report['metrics']['Brightness'])
+    m4.metric("File Size", report['metrics']['File Size'])
 
     st.write("")
     
-    st.write("**Extracted Product Color Palette:**")
-    color_html = ""
-    for hex_code in report['colors']:
-        color_html += f"""
-        <div style="
-            background-color: {hex_code}; 
-            width: 60px; 
-            height: 60px; 
-            border-radius: 8px; 
-            display: inline-block; 
-            margin-right: 15px; 
-            border: 1px solid #444;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-            " title="{hex_code}">
-        </div>
-        """
-    st.markdown(color_html, unsafe_allow_html=True)
-    st.caption(f"Hex Codes: {', '.join(report['colors'])}")
+    # --- NEW: THE INTERACTIVE COLOR GRAPH ---
+    st.write("**Color Distribution Analysis:**")
+    
+    # Convert our color data into a Pandas DataFrame
+    df = pd.DataFrame(report['colors'])
+    
+    # Create a sleek horizontal bar chart using Altair
+    # The magic here is `scale=None`, which tells the chart to use the exact Hex codes as the bar colors!
+    color_chart = alt.Chart(df).mark_bar(cornerRadiusEnd=4, height=30).encode(
+        x=alt.X('percent:Q', title='Percentage of Image (%)', scale=alt.Scale(domain=[0, 100])),
+        y=alt.Y('hex:N', sort='-x', title='Hex Code', axis=alt.Axis(labelAngle=0)),
+        color=alt.Color('hex:N', scale=None),
+        tooltip=['hex', 'percent']
+    ).properties(height=250)
+
+    # Render the chart
+    st.altair_chart(color_chart, use_container_width=True)
 
     st.write("")
 
