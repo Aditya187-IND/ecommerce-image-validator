@@ -31,7 +31,14 @@ if uploaded_file is not None:
 
     with col1:
         st.subheader("Visual Analysis")
-        st.image(report['output_file'], use_container_width=True)
+        
+        # --- NEW: INTERACTIVE TABS FOR IMAGES ---
+        tab1, tab2 = st.tabs(["🎯 AI Detections", "🩻 Structure X-Ray"])
+        
+        with tab1:
+            st.image(report['output_file'], use_container_width=True, caption="YOLO Bounding Box Analysis")
+        with tab2:
+            st.image(report['blueprint_file'], use_container_width=True, caption="Canny Edge Geometry Extraction")
 
     with col2:
         st.subheader("Quality Gate Verdict")
@@ -56,7 +63,6 @@ if uploaded_file is not None:
 
     st.divider() 
 
-    # --- ACTIONABLE NEXT STEPS ---
     if "REJECTED" in report['status'] and report.get('suggestions'):
         st.subheader("💡 Actionable Next Steps")
         st.write("Here is how you can fix the issues and get your image approved:")
@@ -64,7 +70,6 @@ if uploaded_file is not None:
             st.info(suggestion)
         st.divider()
 
-    # --- BOTTOM ROW: Data Dashboard & Graph ---
     st.subheader("📊 Technical Telemetry & Color Distribution")
     
     m1, m2, m3, m4 = st.columns(4)
@@ -75,14 +80,8 @@ if uploaded_file is not None:
 
     st.write("")
     
-    # --- NEW: THE INTERACTIVE COLOR GRAPH ---
     st.write("**Color Distribution Analysis:**")
-    
-    # Convert our color data into a Pandas DataFrame
     df = pd.DataFrame(report['colors'])
-    
-    # Create a sleek horizontal bar chart using Altair
-    # The magic here is `scale=None`, which tells the chart to use the exact Hex codes as the bar colors!
     color_chart = alt.Chart(df).mark_bar(cornerRadiusEnd=4, height=30).encode(
         x=alt.X('percent:Q', title='Percentage of Image (%)', scale=alt.Scale(domain=[0, 100])),
         y=alt.Y('hex:N', sort='-x', title='Hex Code', axis=alt.Axis(labelAngle=0)),
@@ -90,11 +89,9 @@ if uploaded_file is not None:
         tooltip=['hex', 'percent']
     ).properties(height=250)
 
-    # Render the chart
     st.altair_chart(color_chart, use_container_width=True)
 
     st.write("")
-
     st.write("**Verbose System Assessment:**")
     for reason in report.get('reasons', []):
         if "REJECTED" in report['status']:
@@ -102,5 +99,6 @@ if uploaded_file is not None:
         else:
             st.success(f"✅ {reason}")
 
+    # Clean up both temp files
     if os.path.exists(temp_path):
         os.remove(temp_path)
