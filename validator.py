@@ -14,7 +14,6 @@ class ECommerceValidator:
         self.BANNED_BACKGROUND_OBJECTS = ['person', 'dog', 'cat', 'cell phone', 'car'] 
 
     def extract_color_data(self, image_path, k=5):
-        """Extracts dominant colors and calculates their exact percentage in the image."""
         img = cv2.imread(image_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 
         img = cv2.resize(img, (150, 150), interpolation=cv2.INTER_AREA)
@@ -26,8 +25,6 @@ class ECommerceValidator:
         _, labels, centers = cv2.kmeans(pixels, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
         
         centers = np.uint8(centers)
-        
-        # --- NEW: Calculate Percentages ---
         counts = np.bincount(labels.flatten())
         total_pixels = len(labels)
         
@@ -35,12 +32,29 @@ class ECommerceValidator:
         for i in range(k):
             hex_color = '#{:02x}{:02x}{:02x}'.format(centers[i][0], centers[i][1], centers[i][2])
             percent = round((counts[i] / total_pixels) * 100, 1)
-            # Save RGB temporarily for brightness math
             color_data.append({"hex": hex_color, "percent": percent, "rgb": centers[i]})
             
-        # Sort from highest percentage to lowest
-        color_data = sorted(color_data, key=lambda x: x['percent'], reverse=True)
-        return color_data
+        return sorted(color_data, key=lambda x: x['percent'], reverse=True)
+
+    # --- NEW FEATURE: BLUEPRINT EDGE DETECTION ---
+    def generate_blueprint(self, image_path):
+        """Uses Canny Edge Detection to extract the physical geometry of the image."""
+        img = cv2.imread(image_path)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # 1. Apply a Gaussian Blur to smooth out tiny noise/dust
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # 2. Extract the structural edges
+        edges = cv2.Canny(blurred, 50, 150)
+        
+        # 3. Create a high-tech visual (Dark blue background with Neon Cyan lines)
+        blueprint = np.full_like(img, (80, 40, 0), dtype=np.uint8) # BGR for Dark Blue
+        blueprint[edges == 255] = [255, 255, 0] # BGR for Neon Cyan
+        
+        output_name = f"blueprint_{os.path.basename(image_path)}"
+        cv2.imwrite(output_name, blueprint)
+        return output_name
 
     def analyze_image(self, image_path):
         if not os.path.exists(image_path):
@@ -58,7 +72,6 @@ class ECommerceValidator:
         passed_lighting = True
         passed_background = True
 
-        # 1. Standard Property Checks
         if width < self.MIN_RESOLUTION[0] or height < self.MIN_RESOLUTION[1]:
             passed_resolution = False
             rejection_reasons.append(f"Resolution too low ({width}x{height}).")
@@ -77,7 +90,6 @@ class ECommerceValidator:
             rejection_reasons.append("Lighting is completely incorrect (Too dark).")
             suggestions.append("☀️ **Lighting Fix:** Move your setup near a window for natural daylight.")
 
-        # 2. AI Object Detection Checks
         results = self.model(image_path, verbose=False)
         detected_items = []
         
@@ -94,19 +106,19 @@ class ECommerceValidator:
                     rejection_reasons.append(f"Banned object detected: {class_name.upper()}")
                     suggestions.append(f"🧹 **Background Fix:** Please remove the '{class_name}' from the background.")
 
-        # 3. Extract Color Graph Data & Add Color Suggestions
         color_data = self.extract_color_data(image_path)
-        dominant_color = color_data[0] # The #1 most used color (usually the background)
+        dominant_color = color_data[0] 
         
         if dominant_color['percent'] < 40.0:
-            suggestions.append("🎨 **Color Tip:** Your background is too chaotic! Because no single color makes up more than 40% of the image, the product gets lost. Try putting it on a solid colored desk or paper.")
+            suggestions.append("🎨 **Color Tip:** Your background is too chaotic! Because no single color makes up more than 40% of the image, the product gets lost.")
         else:
-            # Check if the main background color is dark
             r, g, b = dominant_color['rgb']
             if (r+g+b) / 3 < 100: 
                 suggestions.append(f"🎨 **Color Tip:** Your dominant background color ({dominant_color['hex']}) is very dark. E-commerce products sell 30% better on pure white or light backgrounds.")
 
-        # Clean up data for the frontend
+        # --- CALL THE NEW BLUEPRINT FUNCTION ---
+        blueprint_file = self.generate_blueprint(image_path)
+
         clean_colors = [{"hex": c["hex"], "percent": c["percent"]} for c in color_data]
 
         report = {
@@ -115,6 +127,7 @@ class ECommerceValidator:
             "reasons": rejection_reasons if rejection_reasons else ["Meets all quality standards."],
             "suggestions": list(set(suggestions)),
             "output_file": output_name,
+            "blueprint_file": blueprint_file, # --- SENDING TO FRONTEND ---
             "metrics": {
                 "Resolution": f"{width}x{height} px",
                 "Sharpness": round(blur_score, 1),
@@ -127,12 +140,12 @@ class ECommerceValidator:
                 "Lighting & Exposure": passed_lighting,
                 "Clean Background": passed_background
             },
-            "colors": clean_colors # Pass the percentage data to the frontend graph!
+            "colors": clean_colors 
         }
         return report
 
 def main():
-    pass # Kept short for deployment
+    pass
 
 if __name__ == "__main__":
     main()
